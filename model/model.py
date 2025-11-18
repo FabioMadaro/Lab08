@@ -33,7 +33,7 @@ class Model:
         risultato = []
 
         for impianto in self._impianti:
-            lista_consumi_impianto = ConsumoDAO.get_consumi(impianto.id)
+            lista_consumi_impianto = impianto.get_consumi()
 
             if lista_consumi_impianto:
                 consumi_del_mese = []
@@ -50,8 +50,7 @@ class Model:
             else:
                 risultato.append((impianto.nome, 0))
 
-
-
+        return risultato
 
 
     def get_sequenza_ottima(self, mese:int):
@@ -75,10 +74,66 @@ class Model:
         """ Implementa la ricorsione """
         # TODO
 
+        if self.__costo_ottimo == -1:
+            self.__costo_ottimo = float('inf')
+
+        impianto_ids = [i.id for i in self._impianti]
+
+        if giorno == 8:
+            if costo_corrente < self.__costo_ottimo:
+                self.__costo_ottimo = costo_corrente
+                self.__sequenza_ottima = sequenza_parziale[:]
+            return
+
+        for impianto_scelto_id in impianto_ids:
+
+            # 1. Calcola il costo totale per la scelta corrente
+            kwh_consumo = consumi_settimana[impianto_scelto_id][giorno - 1]
+
+            costo_spostamento = 0.0
+            if ultimo_impianto is not None and impianto_scelto_id != ultimo_impianto:
+                costo_spostamento = 5.0  # Costo fisso di 5€
+
+            nuovo_costo = costo_corrente + kwh_consumo + costo_spostamento
+
+            if nuovo_costo >= self.__costo_ottimo:
+                continue
+
+            self.__ricorsione(
+                sequenza_parziale + [impianto_scelto_id],
+                giorno + 1,
+                impianto_scelto_id,
+                nuovo_costo,
+                consumi_settimana,
+            )
+
+
     def __get_consumi_prima_settimana_mese(self, mese: int):
         """
         Restituisce i consumi dei primi 7 giorni del mese selezionato per ciascun impianto.
         :return: un dizionario: {id_impianto: [kwh_giorno1, ..., kwh_giorno7]}
         """
         # TODO
+        if self._impianti is None:
+            self.load_impianti()
+
+        consumi_settimana = {}
+
+        for impianto in self._impianti:
+            lista_giornaliera_inizializzata = [0]*7
+            consumi_settimana[impianto.id] = lista_giornaliera_inizializzata
+
+        for impianto in self._impianti:
+            lista_consumi_impianto = ConsumoDAO.get_consumi(impianto.id)
+
+            if lista_consumi_impianto:
+                for consumo in lista_consumi_impianto:
+                    giorno_del_mese = consumo.data.day
+
+                    if consumo.data.month == mese and 1<=giorno_del_mese<=7:
+                        giorno_indice = giorno_del_mese -1
+                        consumi_settimana[impianto.id][giorno_indice] = consumo.kwh
+
+        return consumi_settimana
+
 
